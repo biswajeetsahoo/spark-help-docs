@@ -1,4 +1,4 @@
-# PySpark Architecture — Interview Questions & Answers
+# PySpark Architecture — Interview Questions & Answers (1)
 
 ### 1. What are the key components of PySpark architecture?
 Answer:
@@ -211,4 +211,134 @@ Answer:
   - Switching join strategies based on runtime sizes.
   - Handling skewed joins.
     Enabled via spark.sql.adaptive.enabled=true.
+
+### 31. What happens in PySpark when you call an action after multiple transformations?
+Answer:
+- Transformations are lazy, meaning Spark doesn’t execute them immediately.
+- When an action (count, collect, save) is called:
+  - Spark builds a logical plan from the transformations.
+  - Catalyst optimizer optimizes the plan.
+  - A physical execution plan is created, split into stages.
+  - Tasks are executed across executors.
+ 
+### 32. How does Spark decide the number of shuffle partitions?
+Answer:
+- Controlled by spark.sql.shuffle.partitions (default = 200).
+- Affects operations like joins, groupBy, and aggregations.
+- Too high → unnecessary overhead. Too low → skew and OOM errors.
+- Best practice: tune based on data size and cluster resources.
+
+### 33. How is PySpark different from running pure Python in terms of execution model?
+Answer:
+- Python executes sequentially, whereas PySpark distributes computation across multiple executors.
+- PySpark’s Python code does not execute in parallel by default; instead, it sends execution instructions to Spark’s JVM engine.
+- Real computation happens in JVM executors, not Python processes (except UDFs).
+
+### 34. What’s the role of serialization in PySpark performance?
+Answer:
+- Data sent between driver ↔ executor or Python ↔ JVM must be serialized.
+- Common serializers:
+  - Pickle (default, slower)
+  - CloudPickle (supports more objects)
+  - Kryo (for JVM serialization, faster)
+- Use Arrow for vectorized Pandas UDFs to avoid row-by-row serialization.
+
+### 35. Why is collect() dangerous in PySpark?
+Answer:
+- Brings all data from executors to the driver.
+- Risks:
+  - Out-of-memory (OOM) on driver.
+  - Network congestion.
+- Alternative: use take(n), limit(n), or foreach.
+
+### 36. How do you handle out-of-memory errors in PySpark executors?
+Answer:
+- Increase executor memory: --executor-memory or spark.executor.memory.
+- Reduce shuffle size by increasing partitions.
+- Avoid caching unnecessary datasets.
+- Use persist(StorageLevel.MEMORY_AND_DISK) instead of memory-only caching.
+
+### 37. How does Spark UI help in debugging performance issues?
+Answer:
+- Shows DAG visualization for job stages.
+- Displays shuffle read/write sizes to detect bottlenecks.
+- Identifies skewed tasks and executor failures.
+- Memory and GC statistics for tuning.
+
+### 38. How do you reduce shuffles in PySpark joins?
+Answer:
+- Use broadcast() for small datasets.
+- Repartition both datasets on join key before joining.
+- Use bucketing in table design.
+- Filter early before joining.
+
+### 39. What’s the difference between checkpointing and caching in PySpark?
+Answer:
+- Caching – Keeps RDD/DataFrame in memory for reuse. Still depends on lineage for recomputation if lost.
+- Checkpointing – Saves data to HDFS; truncates lineage to avoid long recomputation chains. Used for long-running jobs.
+
+### 40. How do you debug Python UDF performance in PySpark?
+Answer:
+- Enable Arrow to vectorize (spark.sql.execution.arrow.enabled=true).
+- Check if the logic can be expressed using built-in Spark SQL functions.
+- Profile with .explain() to see if UDF is blocking optimizations.
+
+### 41. How does Spark handle large shuffle files?
+Answer:
+- Writes intermediate data to disk in shuffle spill files.
+- Merges small shuffle files to reduce file system overhead.
+- Uses external shuffle service to serve files after executor death.
+
+### 42. How do you handle executor loss in PySpark?
+Answer:
+- Spark re-schedules lost tasks to other executors.
+- RDD lineage allows recomputation.
+- If data was cached only in the lost executor, recomputation will happen from source.
+
+### 43. What’s the role of speculative execution in slow job recovery?
+Answer:
+- Runs backup copies of slow tasks (stragglers).
+- First to finish wins, reducing total job time.
+- Useful in uneven cluster performance scenarios.
+
+### 44. What’s the difference between DataFrame API and SQL API in PySpark performance?
+Answer:
+- Both use the Catalyst optimizer internally, so performance is similar.
+- DataFrame API offers type safety (in Scala/Java, not Python).
+- SQL API is easier for complex query logic.
+
+### 45. How do you optimize partition size for reading from Parquet in PySpark?
+Answer:
+- Adjust spark.sql.files.maxPartitionBytes to control partition size when reading.
+- Combine small files using coalesce() before processing.
+- Use predicate pushdown to avoid reading unnecessary files.
+
+### 46. What’s the difference between mapPartitions() and map() in PySpark?
+Answer:
+- map() – Operates on each row individually.
+- mapPartitions() – Operates on entire partition at once; fewer function calls → better performance.
+
+### 47. How does PySpark handle heterogeneous cluster resources?
+Answer:
+- By default, tasks are scheduled to available executors.
+- If one node is slower, speculative execution can help.
+- No built-in resource balancing beyond partition distribution.
+
+### 48. How do you handle skewed data in aggregations?
+Answer:
+- Salting keys before aggregation.
+- Splitting large keys into smaller chunks.
+- Using approx_count_distinct instead of exact counts.
+
+### 49. How does dynamic allocation work in PySpark?
+Answer:
+- Executors are added/removed based on workload.
+- Controlled by spark.dynamicAllocation.enabled.
+- Needs external shuffle service enabled.
+
+### 50. How do you run multiple PySpark jobs concurrently without contention?
+Answer:
+- Use different queues in YARN with capacity limits.
+- Tune spark.sql.shuffle.partitions to avoid shuffle saturation.
+- Limit concurrent jobs to available cores and memory.
 
